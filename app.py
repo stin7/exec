@@ -49,5 +49,11 @@ def create_task():
     return render_template("create_task.html")
 
 
+@app.route("/tasks/<int:task_id>")
+def task_detail(task_id):
+    task = Task.query.get_or_404(task_id)
+    return render_template("task_detail.html", task=task)
+
+
 if __name__ == "__main__":
     app.run(port=8007)
