@@ -5,7 +5,6 @@ from config import config
 
 app = Flask(__name__)
 app.config.from_object(config["development"])
-
 app.debug = True
 
 # Initialize the database
@@ -29,8 +28,6 @@ with app.app_context():
 # Routes
 @app.route("/")
 def home():
-    print("in home")
-
     tasks = Task.query.all()
     return render_template("home.html", tasks=tasks)
 
@@ -53,4 +50,4 @@ def create_task():
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(port=8007)
