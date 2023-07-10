@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Flask, redirect, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 
@@ -14,10 +15,33 @@ db = SQLAlchemy(app)
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(128), nullable=False)
-    description = db.Column(db.Text, nullable=False)
+    is_open = db.Column(db.Boolean, nullable=False, default=True)
+    is_complete = db.Column(db.Boolean, nullable=False, default=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    worker_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    discussion = db.relationship("TaskDiscussion", backref="task", lazy=True)
+    parent_task_id = db.Column(db.Integer, db.ForeignKey("task.id"))
+    subtasks = db.relationship(
+        "Task", backref=db.backref("parent_task", remote_side=[id]), lazy=True
+    )
+    result_file = db.Column(db.String(256))
 
     def __repr__(self):
         return f"<Task {self.title}>"
+
+
+class TaskDiscussion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey("task.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False)
+    # ... additional user fields and relationships
 
 
 # Create the tables if they don't exist
@@ -37,8 +61,7 @@ def create_task():
     if request.method == "POST":
         # Logic to handle form submission and create the task
         title = request.form["title"]
-        description = request.form["description"]
-        task = Task(title=title, description=description)
+        task = Task(title=title)
         # Save the task to the database
         db.session.add(task)
         db.session.commit()
@@ -47,12 +70,6 @@ def create_task():
 
     # Render the task creation form
     return render_template("create_task.html")
-
-
-@app.route("/tasks/<int:task_id>")
-def task_detail(task_id):
-    task = Task.query.get_or_404(task_id)
-    return render_template("task_detail.html", task=task)
 
 
 if __name__ == "__main__":
