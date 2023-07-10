@@ -1,6 +1,7 @@
 from datetime import datetime
 from flask import Flask, redirect, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import config
 
@@ -24,7 +25,6 @@ class Task(db.Model):
     subtasks = db.relationship(
         "Task", backref=db.backref("parent_task", remote_side=[id]), lazy=True
     )
-    result_file = db.Column(db.String(256))
 
     def __repr__(self):
         return f"<Task {self.title}>"
@@ -40,8 +40,23 @@ class TaskDiscussion(db.Model):
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(128), nullable=False)
-    # ... additional user fields and relationships
+    username = db.Column(db.String(128), nullable=False)
+    email = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+
+    def __repr__(self):
+        return f"<User {self.username}>"
+
+    @property
+    def password(self):
+        raise AttributeError("password is not a readable attribute")
+
+    @password.setter
+    def password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def verify_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 
 # Create the tables if they don't exist
@@ -61,7 +76,9 @@ def create_task():
     if request.method == "POST":
         # Logic to handle form submission and create the task
         title = request.form["title"]
-        task = Task(title=title)
+        client = request.form["client"]
+        worker = request.form["worker"]
+        task = Task(title=title, client=client, worker=worker)
         # Save the task to the database
         db.session.add(task)
         db.session.commit()
@@ -70,6 +87,25 @@ def create_task():
 
     # Render the task creation form
     return render_template("create_task.html")
+
+
+@app.route("/users/create", methods=["GET", "POST"])
+def create_user():
+    if request.method == "POST":
+        # Logic to handle form submission and create the user
+        username = request.form["username"]
+        email = request.form["email"]
+        password = request.form["password"]
+        user = User(username=username, email=email)
+        user.password = password
+        # Save the user to the database
+        db.session.add(user)
+        db.session.commit()
+
+        return redirect(url_for("home"))
+
+    # Render the user creation form
+    return render_template("create_user.html")
 
 
 if __name__ == "__main__":
