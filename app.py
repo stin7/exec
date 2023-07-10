@@ -133,6 +133,25 @@ def create_task():
     return render_template("create_task.html")
 
 
+@app.route("/tasks/<int:task_id>/create_subtask", methods=["POST"])
+@login_required
+def create_subtask(task_id):
+    parent_task = Task.query.get_or_404(task_id)
+
+    title = request.form.get("title")
+    if not title:
+        abort(400, description="No title provided")
+
+    subtask = Task(
+        title=title, client_id=current_user.id, parent_task_id=parent_task.id
+    )
+
+    db.session.add(subtask)
+    db.session.commit()
+
+    return redirect(url_for("task_detail", task_id=task_id))
+
+
 @app.route("/tasks/<int:task_id>")
 @login_required
 def task_detail(task_id):
