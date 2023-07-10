@@ -1,7 +1,16 @@
 from datetime import datetime
+
 from flask import Flask, redirect, render_template, request, url_for
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from config import config
 
@@ -12,6 +21,13 @@ app.debug = True
 # Initialize the database
 db = SQLAlchemy(app)
 
+# Initialize the login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = (
+    "login"  # specify what view to go to when a login is required
+)
+
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -19,7 +35,7 @@ class Task(db.Model):
     is_open = db.Column(db.Boolean, nullable=False, default=True)
     is_complete = db.Column(db.Boolean, nullable=False, default=False)
     client_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    worker_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    worker_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     discussion = db.relationship("TaskDiscussion", backref="task", lazy=True)
     parent_task_id = db.Column(db.Integer, db.ForeignKey("task.id"))
     subtasks = db.relationship(
@@ -38,7 +54,7 @@ class TaskDiscussion(db.Model):
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(128), nullable=False)
@@ -59,6 +75,11 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
 
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
 # Create the tables if they don't exist
 with app.app_context():
     db.create_all()
@@ -71,27 +92,59 @@ def home():
     return render_template("home.html", tasks=tasks)
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        user = User.query.filter_by(username=username).first()
+        if user is not None and user.verify_password(password):
+            login_user(user)
+            return redirect(url_for("home"))
+        else:
+            # If the user doesn't exist or password is wrong, reload the page
+            return redirect(url_for("login"))
+    return render_template("login.html")
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("home"))
+
+
 @app.route("/tasks/create", methods=["GET", "POST"])
+@login_required
 def create_task():
     if request.method == "POST":
-        # Logic to handle form submission and create the task
         title = request.form["title"]
-        client = request.form["client"]
-        worker = request.form["worker"]
-        task = Task(title=title, client=client, worker=worker)
-        # Save the task to the database
+        task = Task(title=title, client_id=current_user.id)
         db.session.add(task)
         db.session.commit()
-
         return redirect(url_for("home"))
-
-    # Render the task creation form
     return render_template("create_task.html")
+
+
+@app.route("/tasks/<int:task_id>")
+def task_detail(task_id):
+    task = Task.query.get_or_404(task_id)
+    return render_template("task_detail.html", task=task)
+
+
+@app.route("/users", methods=["GET"])
+# @login_required # TODO: Re-enable this when I have a way to add an admin...
+def users():
+    users = User.query.all()
+    return render_template("users.html", users=users)
 
 
 @app.route("/users/create", methods=["GET", "POST"])
 def create_user():
     if request.method == "POST":
+        # TODO: Add a check for existing user before creating,
+        # or otherwise enforce unique usernames and emails
+
         # Logic to handle form submission and create the user
         username = request.form["username"]
         email = request.form["email"]
