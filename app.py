@@ -140,6 +140,25 @@ def task_detail(task_id):
     return render_template("task_detail.html", task=task)
 
 
+@app.route("/tasks/<int:task_id>/add_message", methods=["POST"])
+@login_required
+def add_message(task_id):
+    task = Task.query.get_or_404(task_id)
+
+    message_text = request.form.get("message")
+    if not message_text:
+        abort(400, description="No message provided")
+
+    message = TaskDiscussion(
+        task_id=task.id, user_id=current_user.id, message=message_text
+    )
+
+    db.session.add(message)
+    db.session.commit()
+
+    return redirect(url_for("task_detail", task_id=task.id))
+
+
 @app.route("/users", methods=["GET"])
 @login_required
 @admin_required

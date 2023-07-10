@@ -6,5 +6,16 @@
 <body>
     <h1>Task Detail</h1>
     <h2>Title: {{ task.title }}</h2>
+
+    <h3>Discussion</h3>
+    {% for discussion in task.discussion %}
+    <p>{{ discussion.user_id }}: {{ discussion.message }}</p>
+    {% endfor %}
+
+    <h3>Add Message</h3>
+    <form action="{{ url_for('add_message', task_id=task.id) }}" method="post">
+        <textarea name="message" required></textarea>
+        <button type="submit">Add Message</button>
+    </form>
 </body>
 </html>
