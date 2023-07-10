@@ -95,8 +95,16 @@ def admin_required(f):
 # Routes
 @app.route("/")
 def home():
-    tasks = Task.query.all()
-    return render_template("home.html", tasks=tasks)
+    return render_template("home.html")
+
+
+@app.route("/tasks")
+@login_required
+def tasks():
+    tasks = Task.query.filter(
+        (Task.client_id == current_user.id) | (Task.worker_id == current_user.id)
+    ).all()
+    return render_template("tasks.html", tasks=tasks)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -126,7 +134,8 @@ def logout():
 def create_task():
     if request.method == "POST":
         title = request.form["title"]
-        task = Task(title=title, client_id=current_user.id)
+        ai = User.query.filter_by(username="ai").first()
+        task = Task(title=title, client_id=current_user.id, worker_id=ai.id)
         db.session.add(task)
         db.session.commit()
         return redirect(url_for("home"))
@@ -156,6 +165,10 @@ def create_subtask(task_id):
 @login_required
 def task_detail(task_id):
     task = Task.query.get_or_404(task_id)
+    if task.client_id != current_user.id and task.worker_id != current_user.id:
+        return redirect(
+            url_for("home")
+        )  # Redirect to homepage if user isn't client or worker
     return render_template("task_detail.html", task=task)
 
 
