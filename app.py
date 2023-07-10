@@ -1,6 +1,7 @@
 from datetime import datetime
+from functools import wraps
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, abort, redirect, render_template, request, url_for
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -59,6 +60,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(128), nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
 
     def __repr__(self):
         return f"<User {self.username}>"
@@ -80,9 +82,14 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# Create the tables if they don't exist
-with app.app_context():
-    db.create_all()
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_admin:
+            abort(403)  # HTTP "Forbidden" error
+        return f(*args, **kwargs)
+
+    return decorated_function
 
 
 # Routes
@@ -127,19 +134,23 @@ def create_task():
 
 
 @app.route("/tasks/<int:task_id>")
+@login_required
 def task_detail(task_id):
     task = Task.query.get_or_404(task_id)
     return render_template("task_detail.html", task=task)
 
 
 @app.route("/users", methods=["GET"])
-# @login_required # TODO: Re-enable this when I have a way to add an admin...
+@login_required
+@admin_required
 def users():
     users = User.query.all()
     return render_template("users.html", users=users)
 
 
 @app.route("/users/create", methods=["GET", "POST"])
+@login_required
+@admin_required
 def create_user():
     if request.method == "POST":
         # TODO: Add a check for existing user before creating,
