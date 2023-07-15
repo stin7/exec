@@ -46,6 +46,11 @@ class Task(db.Model):
     def __repr__(self):
         return f"<Task {self.title}>"
 
+    def add_message(self, user_id, message_text):
+        message = TaskDiscussion(task_id=self.id, user_id=user_id, message=message_text)
+        db.session.add(message)
+        db.session.commit()
+
 
 class TaskDiscussion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -181,12 +186,7 @@ def add_message(task_id):
     if not message_text:
         abort(400, description="No message provided")
 
-    message = TaskDiscussion(
-        task_id=task.id, user_id=current_user.id, message=message_text
-    )
-
-    db.session.add(message)
-    db.session.commit()
+    task.add_message(current_user.id, message_text)
 
     return redirect(url_for("task_detail", task_id=task.id))
 
