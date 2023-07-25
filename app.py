@@ -64,7 +64,7 @@ class Task(db.Model):
     )
 
     def __repr__(self):
-        result = f"Task title:{self.title}"
+        result = f"Task title:{self.title}\n"
 
         for discussion in self.discussion:
             result += str(discussion)
@@ -136,6 +136,8 @@ class AI(object):
         print(f"argument: {argument}")
         if action_name == "MESSAGE_CLIENT":
             task.add_message(user_id=as_user.id, message_text=argument)
+        else:
+            raise NotImplementedError(f"Action {action_name} is not implemented for AI")
 
 
 # TODO: Create TaskAgents that act directly on behalf of the client (calendar, email, etc.) Basically anthying that requires authorization or a PUT request that will change state.
