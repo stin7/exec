@@ -28,6 +28,9 @@ class OODA(object):
         self.action_prompt = self.build_action_prompt(self.decision)
         self.action = chat(self.action_prompt)
 
+    def __repr__(self) -> str:
+        return self.decision_prompt + self.decision + self.action_prompt + self.action
+
     def build_decision_prompt(self, observation):
         return f"""
 ### OBSERVATION ###
@@ -81,7 +84,7 @@ single sentence.)
 
 All actions use the following syntax, similar to python functions:
 
-ACTION_NAME(ARGUMENTS).
+ACTION_NAME(ARGUMENT).
 
 I have the following actions available to me:
 - SEARCH_WEB(QUERY)
