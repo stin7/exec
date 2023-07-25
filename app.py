@@ -64,7 +64,11 @@ class Task(db.Model):
     )
 
     def __repr__(self):
-        return f"<Task {self.title}>"
+        result = f"Task title:{self.title}"
+
+        for discussion in self.discussion:
+            result += str(discussion)
+        return result
 
     def add_message(self, user_id, message_text):
         message = TaskDiscussion(task_id=self.id, user_id=user_id, message=message_text)
@@ -83,6 +87,17 @@ class TaskDiscussion(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     message = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        username = User.query.get(self.user_id).username
+        # determine Role, can be client, worker, or other
+        if self.user_id == Task.query.get(self.task_id).client_id:
+            role = "Client"
+        elif self.user_id == Task.query.get(self.task_id).worker_id:
+            role = "Worker"
+        else:
+            role = None
+        return f"{self.timestamp} : {username} ({role}) : {self.message}\n"
 
 
 class User(UserMixin, db.Model):
