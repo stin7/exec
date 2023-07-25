@@ -80,6 +80,12 @@ class Task(db.Model):
         user_ids_to_notify.remove(user_id)
         pub.sendMessage("tasks", task_id=self.id, user_ids=user_ids_to_notify)
 
+    def add_subtask(self, title, client_id):
+        subtask = Task(title=title, client_id=client_id, parent_task_id=self.id)
+        db.session.add(subtask)
+        db.session.commit()
+        return subtask
+
 
 class TaskDiscussion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -217,12 +223,7 @@ def create_subtask(task_id):
     if not title:
         abort(400, description="No title provided")
 
-    subtask = Task(
-        title=title, client_id=current_user.id, parent_task_id=parent_task.id
-    )
-
-    db.session.add(subtask)
-    db.session.commit()
+    parent_task.add_subtask(title=title, client_id=current_user.id)
 
     return redirect(url_for("task_detail", task_id=task_id))
 
