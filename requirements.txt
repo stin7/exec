@@ -2,4 +2,5 @@ Flask-Login
 flask
 flask_sqlalchemy
 openai
+PyPubSub
 SQLAlchemy

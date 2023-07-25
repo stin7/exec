@@ -12,8 +12,10 @@ from flask_login import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
+from pubsub import pub
 
 from config import config
+from prompts.prompts import OODA
 
 app = Flask(__name__)
 app.config.from_object(config["development"])
@@ -28,6 +30,24 @@ login_manager.init_app(app)
 login_manager.login_view = (
     "login"  # specify what view to go to when a login is required
 )
+
+
+# create and register a pubsub listener
+def task_listener(task_id, user_ids):
+    print("Function listener1 received:")
+    print(f"task_id: {task_id}")
+    # Get the task from the database
+    task = Task.query.get(task_id)
+    # Get the users from the database
+    users = User.query.filter(User.id.in_(user_ids)).all()
+    print(f"users: {users}")
+    for user in users:
+        if user.username == "ai":
+            ai = AI()
+            ai.handle_task(task=task, as_user=user)
+
+
+pub.subscribe(task_listener, "tasks")
 
 
 class Task(db.Model):
@@ -50,6 +70,11 @@ class Task(db.Model):
         message = TaskDiscussion(task_id=self.id, user_id=user_id, message=message_text)
         db.session.add(message)
         db.session.commit()
+        # Publish a message to the task's pubsub topic
+        user_ids_to_notify = [self.client_id, self.worker_id]
+        # remove user that sent the message
+        user_ids_to_notify.remove(user_id)
+        pub.sendMessage("tasks", task_id=self.id, user_ids=user_ids_to_notify)
 
 
 class TaskDiscussion(db.Model):
@@ -80,6 +105,25 @@ class User(UserMixin, db.Model):
 
     def verify_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+class AI(object):
+    """An AI agent that can act on behalf of a user"""
+
+    def handle_task(self, task, as_user):
+        """Given a task, complete an OODA loop on the task"""
+        ooda = OODA(str(task))
+        print(f"OODA: {ooda}")
+        # Parse the action, separating out ACTION_NAME and ARGUMENT
+        action_name = ooda.action.split("(")[0]
+        print(f"action_name: {action_name}")
+        argument = ooda.action.split("(")[1].split(")")[0]
+        print(f"argument: {argument}")
+        if action_name == "MESSAGE_CLIENT":
+            task.add_message(user_id=as_user.id, message_text=argument)
+
+
+# TODO: Create TaskAgents that act directly on behalf of the client (calendar, email, etc.) Basically anthying that requires authorization or a PUT request that will change state.
 
 
 @login_manager.user_loader
