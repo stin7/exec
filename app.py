@@ -16,6 +16,7 @@ from pubsub import pub
 
 from config import config
 from prompts.prompts import OODA
+import tools
 
 app = Flask(__name__)
 app.config.from_object(config["development"])
@@ -142,6 +143,12 @@ class AI(object):
         print(f"argument: {argument}")
         if action_name == "MESSAGE_CLIENT":
             task.add_message(user_id=as_user.id, message_text=argument)
+        elif action_name == "SEARCH_WEB":
+            result = tools.get_organic_search_results(argument)
+            task.add_message(user_id=as_user.id, message_text=str(result))
+        elif action_name == "ACCESS_URL":
+            markdown = tools.get_markdown_from_url(argument)
+            task.add_message(user_id=as_user.id, message_text=markdown)
         else:
             raise NotImplementedError(f"Action {action_name} is not implemented for AI")
 

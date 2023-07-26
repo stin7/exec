@@ -1,7 +1,11 @@
 import os
+
 import html2text
 import requests
+from dotenv import load_dotenv
 from serpapi import BingSearch
+
+load_dotenv()
 
 
 def get_organic_search_results(query):
@@ -11,7 +15,14 @@ def get_organic_search_results(query):
         "api_key": os.getenv("SERPAPI_API_KEY"),
     }
     search = BingSearch(params)
-    return search.get_dict()["organic_results"]
+    results = search.get_dict()["organic_results"]
+    txt = f"# Website results for the query: {query}\n\n"
+    for r in results:
+        txt += f"{r['position']}. [{r['title']}]({r['link']})"
+        if "snippet" in r:
+            txt += f" - {r['snippet']}"
+        txt += "\n"
+    return txt
 
 
 def get_markdown_from_url(url):
