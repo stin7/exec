@@ -1,7 +1,10 @@
 Flask-Login
 flask
 flask_sqlalchemy
+google-search-results
+html2text
 openai
 PyPubSub
 python-dotenv
+requests
 SQLAlchemy
