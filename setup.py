@@ -18,3 +18,6 @@ if __name__ == "__main__":
         create_user("admin", "admin@example.com", "adminpassword", True)
         create_user("alice", "alice@example.com", "alicepassword")
         create_user("ai", "ai@example.com", "aipassword")
+        create_user("managerai", "managerai@example.com", "aipassword")
+        create_user("clientai", "clientai@example.com", "aipassword")
+        create_user("agentai", "agentai@example.com", "aipassword")

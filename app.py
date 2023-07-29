@@ -15,7 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from pubsub import pub
 
 from config import config
-from prompts.prompts import OODA
+from prompts.prompts import AgentOODA, ManagerOODA, ClientOODA
 import tools
 
 app = Flask(__name__)
@@ -39,12 +39,13 @@ def task_listener(task_id, user_ids):
     print(f"task_id: {task_id}")
     # Get the task from the database
     task = Task.query.get(task_id)
+
     # Get the users from the database
     users = User.query.filter(User.id.in_(user_ids)).all()
     print(f"users: {users}")
     for user in users:
-        if user.username == "ai":
-            ai = AI()
+        if user.username == "managerai":
+            ai = ManagerAI()
             ai.handle_task(task=task, as_user=user)
 
 
@@ -81,8 +82,16 @@ class Task(db.Model):
         user_ids_to_notify.remove(user_id)
         pub.sendMessage("tasks", task_id=self.id, user_ids=user_ids_to_notify)
 
-    def add_subtask(self, title, client_id):
-        subtask = Task(title=title, client_id=client_id, parent_task_id=self.id)
+    def add_subtask(self, title, client_id, worker_id=None):
+        if worker_id is not None:
+            subtask = Task(
+                title=title,
+                client_id=client_id,
+                worker_id=worker_id,
+                parent_task_id=self.id,
+            )
+        else:
+            subtask = Task(title=title, client_id=client_id, parent_task_id=self.id)
         db.session.add(subtask)
         db.session.commit()
         return subtask
@@ -129,12 +138,12 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
 
-class AI(object):
-    """An AI agent that can act on behalf of a user"""
+class AgentAI(object):
+    """An AI that takes on small tasks"""
 
     def handle_task(self, task, as_user):
         """Given a task, complete an OODA loop on the task"""
-        ooda = OODA(str(task))
+        ooda = AgentOODA(str(task))
         print(f"OODA: {ooda}")
         # Parse the action, separating out ACTION_NAME and ARGUMENT
         action_name = ooda.action.split("(")[0]
@@ -151,6 +160,53 @@ class AI(object):
             task.add_message(user_id=as_user.id, message_text=markdown)
         else:
             raise NotImplementedError(f"Action {action_name} is not implemented for AI")
+
+
+class ManagerAI(object):
+    """An AI that manages Agent AIs to complete a Client task"""
+
+    def handle_task_as_worker(self, task, as_user):
+        """Given a task, complete an OODA loop on the task"""
+        ooda = ManagerOODA(str(task))
+        print(f"OODA: {ooda}")
+        # Parse the action, separating out ACTION_NAME and ARGUMENT
+        action_name = ooda.action.split("(")[0]
+        print(f"action_name: {action_name}")
+        argument = ooda.action.split("(")[1].split(")")[0]
+        print(f"argument: {argument}")
+        if action_name == "MESSAGE_CLIENT":
+            task.add_message(user_id=as_user.id, message_text=argument)
+        elif action_name == "CREATE_PLAN":
+            task.add_message(user_id=as_user.id, message_text=argument)
+        elif action_name == "CREATE_SUBTASK":
+            # Get the agent AI
+            agent_ai = User.query.filter_by(username="agentai").first()
+            task.add_subtask(
+                title=argument, client_id=as_user.id, worker_id=agent_ai.id
+            )
+        else:
+            raise NotImplementedError(f"Action {action_name} is not implemented for AI")
+
+    def handle_task_as_client(self, task, as_user):
+        """Given a task, complete an OODA loop on the task"""
+        ooda = ClientOODA(str(task))
+        print(f"OODA: {ooda}")
+        # Parse the action, separating out ACTION_NAME and ARGUMENT
+        action_name = ooda.action.split("(")[0]
+        print(f"action_name: {action_name}")
+        argument = ooda.action.split("(")[1].split(")")[0]
+        print(f"argument: {argument}")
+        if action_name == "MESSAGE_WORKER":
+            task.add_message(user_id=as_user.id, message_text=argument)
+        else:
+            raise NotImplementedError(f"Action {action_name} is not implemented for AI")
+
+    def handle_task(self, task, as_user):
+        # determine if the user is the client or worker
+        if as_user.id == task.client_id:
+            self.handle_task_as_client(task=task, as_user=as_user)
+        elif as_user.id == task.worker_id:
+            self.handle_task_as_worker(task=task, as_user=as_user)
 
 
 # TODO: Create TaskAgents that act directly on behalf of the client (calendar, email, etc.) Basically anthying that requires authorization or a PUT request that will change state.
@@ -213,8 +269,9 @@ def logout():
 def create_task():
     if request.method == "POST":
         title = request.form["title"]
-        ai = User.query.filter_by(username="ai").first()
-        task = Task(title=title, client_id=current_user.id, worker_id=ai.id)
+        # get the manager AI
+        mngr_ai = User.query.filter_by(username="managerai").first()
+        task = Task(title=title, client_id=current_user.id, worker_id=mngr_ai.id)
         db.session.add(task)
         db.session.commit()
         return redirect(url_for("home"))
