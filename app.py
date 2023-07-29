@@ -47,6 +47,9 @@ def task_listener(task_id, user_ids):
         if user.username == "managerai":
             ai = ManagerAI()
             ai.handle_task(task=task, as_user=user)
+        if user.username == "agentai":
+            ai = AgentAI()
+            ai.handle_task(task=task, as_user=user)
 
 
 pub.subscribe(task_listener, "tasks")
